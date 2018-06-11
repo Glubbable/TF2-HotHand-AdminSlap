@@ -235,7 +235,7 @@ void PerformSlap(int iClient, int iTarget, float flDamage, int iCount, float flT
 		LogAction(iClient, iTarget, "%s has slapped %s for a total of %i times.", sClientName, sTargetName, iCount);
 		g_iSlapCount[iTarget] = iCount;
 		g_flSlapTargetDamage[iTarget] = flDamage;
-		g_hSlapTimer[iTarget] = CreateTimer(flTime, Timer_RepeatSlap, iTarget, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+		g_hSlapTimer[iTarget] = CreateTimer(flTime, Timer_RepeatSlap, GetClientUserId(iTarget), TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 		TriggerTimer(g_hSlapTimer[iTarget], true);
 	}
 }
