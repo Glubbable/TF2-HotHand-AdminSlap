@@ -4,13 +4,14 @@
 #include <sdkhooks>
 #include <sdktools>
 #include <tf2>
+#include <tf2_stocks>
 
 #define TFTeam_Unassigned 0
 #define TFTeam_Spectator 1
 #define TFTeam_Red 2
 #define TFTeam_Blue 3
 
-#define PLUGIN_VERSION	"1.1"
+#define PLUGIN_VERSION	"1.2"
 #define PLUGIN_DESC	"Admin Slap but it's like being slapped by a Pyro."
 #define PLUGIN_NAME	"[TF2] Hothand Admin Slap"
 #define PLUGIN_AUTH	"Glubbable"
@@ -260,6 +261,11 @@ void PerformSlapMe(int iClient, float flDamage, int iCount, float flTime)
 
 void SlapTarget(int iClient, float flDamage)
 {
+	// Remove things that stop us from teleporting the client.
+	TF2_RemoveCondition(iClient, TFCond_GrapplingHook);
+	TF2_RemoveCondition(iClient, TFCond_GrapplingHookLatched);
+	TF2_RemoveCondition(iClient, TFCond_HalloweenKart);
+		
 	if (g_flMinForce != g_flMaxForce && g_flMinForce < g_flMaxForce)
 	{
 		float vecForce[3];
@@ -279,7 +285,7 @@ void SlapTarget(int iClient, float flDamage)
 			case 2: vecForce[1] -= flRandomValue;
 		}
 		
-		vecForce[2] += flRandomValue;
+		vecForce[2] += flRandomValue;	
 		TeleportEntity(iClient, NULL_VECTOR, NULL_VECTOR, vecForce);
 	}
 	
@@ -304,7 +310,9 @@ public Action Timer_RepeatSlap(Handle hTimer, any iUserID)
 	
 	if (!IsClientConnected(iClient) || !IsClientInGame(iClient)) return Plugin_Stop;
 	if (g_iSlapCount[iClient] == 0 || g_hSlapTimer[iClient] != hTimer) return Plugin_Stop;
-	if (!IsPlayerAlive(iClient)) return Plugin_Continue;
+	
+	if (!IsPlayerAlive(iClient) || TF2_IsPlayerInCondition(iClient, TFCond_SwimmingNoEffects) 
+	|| TF2_IsPlayerInCondition(iClient, TFCond_HalloweenGhostMode)) return Plugin_Continue;
 	
 	float flDamage = g_flSlapTargetDamage[iClient];
 	SlapTarget(iClient, flDamage);
@@ -332,7 +340,8 @@ public Action Command_HotHandSlap_Single(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 	
-	if (!IsPlayerAlive(iClient))
+	// Check if the player is in the ghostmode condition or a custom one that uses swimming no effects (like SF2)
+	if (!IsPlayerAlive(iClient) || TF2_IsPlayerInCondition(iClient, TFCond_SwimmingNoEffects) || TF2_IsPlayerInCondition(iClient, TFCond_HalloweenGhostMode))
 	{
 		ReplyToCommand(iClient, "[SM] Error. You must be alive to use this command!");
 		return Plugin_Handled;
