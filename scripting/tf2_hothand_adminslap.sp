@@ -285,17 +285,17 @@ void SlapTarget(int iClient, float flDamage)
 			case 2: vecForce[1] -= flRandomValue;
 		}
 		
-		vecForce[2] += flRandomValue;	
+		vecForce[2] += flRandomValue;
 		TeleportEntity(iClient, NULL_VECTOR, NULL_VECTOR, vecForce);
 	}
 	
 	int iRandomSound = GetRandomInt(1, 4);
 	switch (iRandomSound)
 	{
-		case 1: EmitSoundToAll(HOTHANDSLAP_SOUND1, iClient);
-		case 2: EmitSoundToAll(HOTHANDSLAP_SOUND2, iClient);
-		case 3: EmitSoundToAll(HOTHANDSLAP_SOUND3, iClient);
-		case 4: EmitSoundToAll(HOTHANDSLAP_SOUND4, iClient);
+		case 1: EmitSoundToAll(HOTHANDSLAP_SOUND1, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
+		case 2: EmitSoundToAll(HOTHANDSLAP_SOUND2, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
+		case 3: EmitSoundToAll(HOTHANDSLAP_SOUND3, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
+		case 4: EmitSoundToAll(HOTHANDSLAP_SOUND4, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
 	}
 	
 	SDKHooks_TakeDamage(iClient, 0, 0, flDamage, DMG_CLUB);
