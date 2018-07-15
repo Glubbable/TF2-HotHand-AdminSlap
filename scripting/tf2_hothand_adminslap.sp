@@ -6,12 +6,7 @@
 #include <tf2>
 #include <tf2_stocks>
 
-#define TFTeam_Unassigned 0
-#define TFTeam_Spectator 1
-#define TFTeam_Red 2
-#define TFTeam_Blue 3
-
-#define PLUGIN_VERSION	"1.2"
+#define PLUGIN_VERSION	"1.3"
 #define PLUGIN_DESC	"Admin Slap but it's like being slapped by a Pyro."
 #define PLUGIN_NAME	"[TF2] Hothand Admin Slap"
 #define PLUGIN_AUTH	"Glubbable"
@@ -37,20 +32,22 @@ ConVar g_cvSlapInterval;
 ConVar g_cvSlapDamage;
 ConVar g_cvSlapMinForce;
 ConVar g_cvSlapMaxForce;
+ConVar g_cvSlapSoundVolume;
 ConVar g_cvSlapMeEnable;
 ConVar g_cvSlapTeam;
 ConVar g_cvSlapLimit;
 
-bool g_bEnabled;
-bool g_bSlapMeEnable;
-bool g_bRoundEnd;
-int g_iSlapMode;
-int g_iSlapTeam;
-int g_iSlapLimit;
-float g_flSlapInterval;
-float g_flSlapDamage;
-float g_flMinForce;
-float g_flMaxForce;
+static bool g_bEnabled;
+static bool g_bSlapMeEnable;
+static bool g_bRoundEnd;
+static int g_iSlapMode;
+static TFTeam g_tfSlapTeam;
+static int g_iSlapLimit;
+static float g_flSlapInterval;
+static float g_flSlapDamage;
+static float g_flMinForce;
+static float g_flMaxForce;
+static float g_flSoundVolume;
 
 int g_iSlapCount[MAXPLAYERS + 1];
 float g_flSlapTargetDamage[MAXPLAYERS + 1];
@@ -67,6 +64,7 @@ public void OnPluginStart()
 	g_cvSlapDamage = CreateConVar("sm_hothand_slap_damage", "10.0", "How much damage to deal to a victim per slap (by default). Requires Mode 2.", _, true, 0.0);
 	g_cvSlapMinForce = CreateConVar("sm_hothand_min_force", "25.0", "How much min force should be applied to the client on each slap.", _, true, 0.0);
 	g_cvSlapMaxForce = CreateConVar("sm_hothand_max_force", "500.0", "How much max force should be applied to the client on each slap.", _, true, 0.0);
+	g_cvSlapSoundVolume = CreateConVar("sm_hothand_sound_volume", "0.25", "Controls the volume for the slap sounds, since this can be a little loud, adjust accordingly.", _, true, 0.0, true, 1.0);
 	
 	g_cvSlapMeEnable = CreateConVar("sm_hothand_slapme_enable", "1", "Enables/Disables Slapme Command of Hot Hand Slap", _, true, 0.0, true, 1.0);
 	g_cvSlapTeam = CreateConVar("sm_hothand_slap_team", "0", "Restricts the slapme behaviour so it will not affect a specific team. Default is 0 for off. 2 for RED, 3 for BLU.", _, true, 0.0, true, 3.0);
@@ -126,6 +124,7 @@ void HookConVars()
 	HookConVarChange(g_cvSlapDamage, Hook_OnConVarChange);
 	HookConVarChange(g_cvSlapMinForce, Hook_OnConVarChange);
 	HookConVarChange(g_cvSlapMaxForce, Hook_OnConVarChange);
+	HookConVarChange(g_cvSlapSoundVolume, Hook_OnConVarChange);
 	HookConVarChange(g_cvSlapTeam, Hook_OnConVarChange);
 	HookConVarChange(g_cvSlapLimit, Hook_OnConVarChange);
 }
@@ -138,8 +137,9 @@ void InitializeValues()
 	g_flSlapDamage = GetConVarFloat(g_cvSlapDamage);
 	g_flMinForce = GetConVarFloat(g_cvSlapMinForce);
 	g_flMaxForce = GetConVarFloat(g_cvSlapMaxForce);
+	g_flSoundVolume = GetConVarFloat(g_cvSlapSoundVolume);
 	g_bSlapMeEnable = GetConVarBool(g_cvSlapMeEnable);
-	g_iSlapTeam = GetConVarInt(g_cvSlapTeam);
+	g_tfSlapTeam = view_as<TFTeam>(GetConVarInt(g_cvSlapTeam));
 	g_iSlapLimit = GetConVarInt(g_cvSlapLimit);
 	
 	g_bRoundEnd = false;
@@ -147,10 +147,12 @@ void InitializeValues()
 
 void PreCacheAssets()
 {
-	PrecacheSound2(HOTHANDSLAP_SOUND1);
-	PrecacheSound2(HOTHANDSLAP_SOUND2);
-	PrecacheSound2(HOTHANDSLAP_SOUND3);
-	PrecacheSound2(HOTHANDSLAP_SOUND4);
+	for (int i = 1; i < 5; i++)
+	{
+		char sBuffer[PLATFORM_MAX_PATH];
+		Format(sBuffer, sizeof(sBuffer), "weapons/slap_hit%i.wav", i);
+		PrecacheSound2(sBuffer);
+	}
 }
 
 void CleanClient(int iClient)
@@ -162,46 +164,45 @@ void CleanClient(int iClient)
 
 public void Hook_OnConVarChange(Handle hCvar, const char[] sOldValue, const char[] sNewValue)
 {
-	if (hCvar == g_cvSlapEnable && (StringToInt(sNewValue) != StringToInt(sOldValue)))
+	if (StringToFloat(sNewValue) == StringToFloat(sOldValue)) return;
+	
+	if (hCvar == g_cvSlapEnable)
 	{
 		g_bEnabled = GetConVarBool(g_cvSlapEnable);
 	}
-	
-	else if (hCvar == g_cvSlapMode && (StringToInt(sNewValue) != StringToInt(sOldValue)))
+	else if (hCvar == g_cvSlapMode)
 	{
 		g_iSlapMode = GetConVarInt(g_cvSlapMode);
 	}
-	
-	else if (hCvar == g_cvSlapInterval && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapInterval)
 	{
 		g_flSlapInterval = GetConVarFloat(g_cvSlapInterval);
 	}
-	
-	else if (hCvar == g_cvSlapDamage && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapDamage)
 	{
 		g_flSlapDamage = GetConVarFloat(g_cvSlapDamage);
 	}
-	
-	else if (hCvar == g_cvSlapMinForce && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapMinForce)
 	{
 		g_flMinForce = GetConVarFloat(g_cvSlapMinForce);
 	}
-	
-	else if (hCvar == g_cvSlapMaxForce && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapMaxForce)
 	{
 		g_flMaxForce = GetConVarFloat(g_cvSlapMaxForce);
 	}
-	
-	else if (hCvar == g_cvSlapMeEnable && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapSoundVolume)
+	{
+		g_flSoundVolume = GetConVarFloat(g_cvSlapSoundVolume);
+	}
+	else if (hCvar == g_cvSlapMeEnable)
 	{
 		g_bSlapMeEnable = GetConVarBool(g_cvSlapMeEnable);
 	}
-	else if (hCvar == g_cvSlapTeam && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapTeam)
 	{
-		g_iSlapTeam = GetConVarInt(g_cvSlapTeam);
+		g_tfSlapTeam = view_as<TFTeam>(GetConVarInt(g_cvSlapTeam));
 	}
-	
-	else if (hCvar == g_cvSlapLimit && (StringToFloat(sNewValue) != StringToFloat(sOldValue)))
+	else if (hCvar == g_cvSlapLimit)
 	{
 		g_iSlapLimit = GetConVarInt(g_cvSlapLimit);
 	}
@@ -265,38 +266,31 @@ void SlapTarget(int iClient, float flDamage)
 	TF2_RemoveCondition(iClient, TFCond_GrapplingHook);
 	TF2_RemoveCondition(iClient, TFCond_GrapplingHookLatched);
 	TF2_RemoveCondition(iClient, TFCond_HalloweenKart);
-		
+	
+	int iRandom;
 	if (g_flMinForce != g_flMaxForce && g_flMinForce < g_flMaxForce)
 	{
 		float vecForce[3];
-		int iRandom = GetRandomInt(1, 2);
 		float flRandomValue = GetRandomFloat(g_flMinForce, g_flMaxForce);
 		
-		switch (iRandom)
+		for (int i = 0; i < 2; i++)
 		{
-			case 1: vecForce[0] += flRandomValue;
-			case 2: vecForce[0] -= flRandomValue;
-		}
-		
-		iRandom = GetRandomInt(1, 2);
-		switch (iRandom)
-		{
-			case 1: vecForce[1] += flRandomValue;
-			case 2: vecForce[1] -= flRandomValue;
+			iRandom = GetRandomInt(1, 2);
+			switch (iRandom)
+			{
+				case 1: vecForce[i] += flRandomValue;
+				case 2: vecForce[i] -= flRandomValue;
+			}
 		}
 		
 		vecForce[2] += flRandomValue;
 		TeleportEntity(iClient, NULL_VECTOR, NULL_VECTOR, vecForce);
 	}
 	
-	int iRandomSound = GetRandomInt(1, 4);
-	switch (iRandomSound)
-	{
-		case 1: EmitSoundToAll(HOTHANDSLAP_SOUND1, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
-		case 2: EmitSoundToAll(HOTHANDSLAP_SOUND2, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
-		case 3: EmitSoundToAll(HOTHANDSLAP_SOUND3, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
-		case 4: EmitSoundToAll(HOTHANDSLAP_SOUND4, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, 0.25);
-	}
+	iRandom = GetRandomInt(1, 4);
+	char sBuffer[PLATFORM_MAX_PATH];
+	Format(sBuffer, sizeof(sBuffer), "weapons/slap_hit%i.wav", iRandom);
+	EmitSoundToAll(sBuffer, iClient, SNDCHAN_AUTO, SNDLEVEL_NONE, _, g_flSoundVolume);
 	
 	SDKHooks_TakeDamage(iClient, 0, 0, flDamage, DMG_CLUB);
 }
@@ -333,8 +327,8 @@ public Action Command_HotHandSlap_Single(int iClient, int iArgs)
 		return Plugin_Handled;
 	}
 	
-	int iTeam = GetClientTeam(iClient);
-	if (iTeam == g_iSlapTeam || iTeam == TFTeam_Spectator || iTeam == TFTeam_Unassigned)
+	TFTeam tfTeam = TF2_GetClientTeam(iClient);
+	if (tfTeam == g_tfSlapTeam || tfTeam == TFTeam_Spectator || tfTeam == TFTeam_Unassigned)
 	{
 		ReplyToCommand(iClient, "[SM] Error. This command is not available for this team!");
 		return Plugin_Handled;
