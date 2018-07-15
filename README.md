@@ -27,6 +27,10 @@ I am still fairly new to writing SourceMod plugins so forgive if I am making bas
 - Determins the min amount of force to be applied to a player on each slap. Default is 500.0, min is 0. 
 - Applied force is skipped if min & max values match.
 
+### sm_hothand_sound_volume (Float - 0.0 > 1.0) (Default: 0.25)
+- Determins the volume of which to play the slap sounds at to the client. Default is 0.25 for 25%, min is 0 for 0%.
+- Due to how loud the slap sounds are, it is ideal to adjust the volume of this without having to change the plugin.
+
 ### sm_hothand_slapme_enable (Bool - 0/1) (Default: 1)
 - Enables/Disables the Ability for players to slap themselves. Because Science isn't about why?! It's about why not?!
 
